@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Form</title>
+</head>
+<body>
+
+<h2>Student Form</h2>
+
+<form action="/cgi-bin/insert.py" method="post">
+    Name:<br>
+    <input type="text" name="name"><br><br>
+
+    Mobile:<br>
+    <input type="text" name="mobile"><br><br>
+
+    Email:<br>
+    <input type="email" name="email"><br><br>
+
+    Age:<br>
+    <input type="number" name="age"><br><br>
+
+    <input type="submit" value="Insert">
+</form>
+
+<br>
+
+<a href="/cgi-bin/display.py">Display Data</a>
+
+</body>
+</html>

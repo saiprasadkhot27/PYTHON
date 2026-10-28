@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Register - TraceLens Lite{% endblock %}
+
+{% block content %}
+<div class="register-page">
+    <div class="container d-flex align-items-center justify-content-center min-vh-100">
+        <div class="register-card">
+            <div class="text-center mb-4">
+                <i class="fas fa-receipt register-icon"></i>
+                <h1 class="mt-3">TraceLens Lite</h1>
+                <p class="text-muted">Join us today</p>
+            </div>
+
+            <div id="registerForm" class="auth-form">
+                <h3 class="mb-4 text-center">Create Your Account</h3>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" placeholder="Choose a username" required>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="email" placeholder="Enter your email" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" placeholder="Create a strong password" required>
+                </div>
+                <div class="mb-3">
+                    <label for="confirmPassword" class="form-label">Confirm Password</label>
+                    <input type="password" class="form-control" id="confirmPassword" placeholder="Confirm your password" required>
+                </div>
+                <button type="button" class="btn btn-primary w-100" onclick="handleRegister()">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </button>
+                <div id="registerError" class="alert alert-danger mt-3" style="display: none;"></div>
+                <div id="registerSuccess" class="alert alert-success mt-3" style="display: none;"></div>
+            </div>
+
+            <div class="text-center mt-4">
+                <p class="mb-0">Already have an account? 
+                    <a href="{{ url_for('login') }}" class="text-primary fw-bold">Login here</a>
+                </p>
+            </div>
+
+            <div class="features mt-4 p-3 bg-light rounded">
+                <small class="text-muted">
+                    <strong>Why join TraceLens Lite?</strong><br>
+                    ✓ AI-powered receipt scanning<br>
+                    ✓ Automatic expense categorization<br>
+                    ✓ Smart analytics & reports<br>
+                    ✓ Completely secure & private
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.register-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+.register-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    padding: 40px;
+    max-width: 450px;
+    width: 100%;
+}
+
+.register-icon {
+    font-size: 60px;
+    color: #667eea;
+}
+
+.auth-form input {
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.auth-form button {
+    border-radius: 8px;
+    padding: 12px;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.auth-form button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+}
+
+.features {
+    border-left: 4px solid #667eea;
+}
+
+@media (max-width: 576px) {
+    .register-card {
+        padding: 30px 20px;
+    }
+}
+</style>
+
+<script>
+function handleRegister() {
+    const username = document.getElementById('username').value;
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const errorDiv = document.getElementById('registerError');
+    const successDiv = document.getElementById('registerSuccess');
+
+    // Clear previous messages
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    // Validation
+    if (!username || !email || !password || !confirmPassword) {
+        errorDiv.textContent = 'Please fill in all fields';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        errorDiv.textContent = 'Passwords do not match';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (password.length < 6) {
+        errorDiv.textContent = 'Password must be at least 6 characters long';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        errorDiv.textContent = 'Please enter a valid email address';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    fetch('/register', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            username: username,
+            email: email,
+            password: password
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            successDiv.textContent = 'Account created successfully! Redirecting to login...';
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                window.location.href = '{{ url_for("login") }}';
+            }, 2000);
+        } else {
+            errorDiv.textContent = data.message || 'Registration failed';
+            errorDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        errorDiv.textContent = 'An error occurred. Please try again.';
+        errorDiv.style.display = 'block';
+    });
+}
+
+// Enter key to submit
+document.getElementById('confirmPassword').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        handleRegister();
+    }
+});
+</script>
+{% endblock %}

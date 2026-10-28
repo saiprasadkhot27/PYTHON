@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - TraceLens Lite{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        position: relative;
+        height: 400px;
+        margin-bottom: 30px;
+    }
+
+    .analytics-card {
+        border-radius: 10px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .stat-box {
+        padding: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    .stat-box h6 {
+        font-size: 14px;
+        opacity: 0.9;
+    }
+
+    .stat-box .value {
+        font-size: 32px;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+
+    .loading-spinner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 400px;
+        color: #667eea;
+    }
+
+    .no-data {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 400px;
+        color: #999;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="mb-2"><i class="fas fa-chart-pie"></i> Expense Analytics</h1>
+            <p class="text-muted">Visualize your spending patterns and get insights.</p>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-box">
+                <h6>Total Spent</h6>
+                <div class="value" id="totalSpent">₹0</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-box">
+                <h6>Average Expense</h6>
+                <div class="value" id="avgExpense">₹0</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-box">
+                <h6>Highest Category</h6>
+                <div class="value" id="topCategory">-</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-box">
+                <h6>Expense Count</h6>
+                <div class="value" id="expenseCount">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row mb-4">
+        <!-- Category Pie Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card analytics-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-pie-chart"></i> Spending by Category</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <div id="categoryChartSpinner" class="loading-spinner">
+                            <div class="spinner-border" role="status"></div>
+                        </div>
+                        <div id="categoryChartNoData" class="no-data" style="display: none;">
+                            <i class="fas fa-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 10px;"></i>
+                            <p>No data available</p>
+                        </div>
+                        <canvas id="categoryChart" style="display: none;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly Trend Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card analytics-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-line-chart"></i> Monthly Spending Trend</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <div id="monthlyChartSpinner" class="loading-spinner">
+                            <div class="spinner-border" role="status"></div>
+                        </div>
+                        <div id="monthlyChartNoData" class="no-data" style="display: none;">
+                            <i class="fas fa-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 10px;"></i>
+                            <p>No data available</p>
+                        </div>
+                        <canvas id="monthlyChart" style="display: none;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Breakdown Table -->
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card analytics-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-table"></i> Category Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="categoryTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Category</th>
+                                    <th class="text-end">Amount</th>
+                                    <th class="text-end">Percentage</th>
+                                    <th class="text-end">Transactions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="categoryTableBody">
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let categoryChartInstance = null;
+    let monthlyChartInstance = null;
+
+    function loadAnalytics() {
+        fetch('/api/analytics')
+        .then(response => response.json())
+        .then(data => {
+            updateStats(data);
+            drawCategoryChart(data.category_spending);
+            drawMonthlyChart(data.monthly_spending);
+            updateCategoryTable(data.category_spending);
+        })
+        .catch(error => {
+            console.error('Error loading analytics:', error);
+        });
+    }
+
+    function updateStats(data) {
+        const totalSpent = data.total_spent || 0;
+        const avgExpense = data.average_expense || 0;
+        
+        document.getElementById('totalSpent').textContent = `₹${totalSpent.toFixed(2)}`;
+        document.getElementById('avgExpense').textContent = `₹${avgExpense.toFixed(2)}`;
+        
+        // Find top category
+        let topCategory = '-';
+        let maxAmount = 0;
+        for (const [category, amount] of Object.entries(data.category_spending)) {
+            if (amount > maxAmount) {
+                maxAmount = amount;
+                topCategory = category;
+            }
+        }
+        document.getElementById('topCategory').textContent = topCategory;
+        
+        // Count transactions
+        let transactionCount = 0;
+        for (const amount of Object.values(data.category_spending)) {
+            transactionCount++;
+        }
+        document.getElementById('expenseCount').textContent = transactionCount;
+    }
+
+    function drawCategoryChart(categorySpending) {
+        const ctx = document.getElementById('categoryChart');
+        
+        if (Object.keys(categorySpending).length === 0) {
+            document.getElementById('categoryChartSpinner').style.display = 'none';
+            document.getElementById('categoryChartNoData').style.display = 'flex';
+            return;
+        }
+
+        document.getElementById('categoryChartSpinner').style.display = 'none';
+        ctx.style.display = 'block';
+
+        const categories = Object.keys(categorySpending);
+        const amounts = Object.values(categorySpending);
+
+        const colors = [
+            '#ff6b6b', '#ffd43b', '#51cf66', '#a78bfa',
+            '#06b6d4', '#ec4899', '#ff922b', '#748ffc'
+        ];
+
+        if (categoryChartInstance) {
+            categoryChartInstance.destroy();
+        }
+
+        categoryChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: categories,
+                datasets: [{
+                    data: amounts,
+                    backgroundColor: colors.slice(0, categories.length),
+                    borderColor: '#fff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    function drawMonthlyChart(monthlySpending) {
+        const ctx = document.getElementById('monthlyChart');
+        
+        if (Object.keys(monthlySpending).length === 0) {
+            document.getElementById('monthlyChartSpinner').style.display = 'none';
+            document.getElementById('monthlyChartNoData').style.display = 'flex';
+            return;
+        }
+
+        document.getElementById('monthlyChartSpinner').style.display = 'none';
+        ctx.style.display = 'block';
+
+        const months = Object.keys(monthlySpending);
+        const amounts = Object.values(monthlySpending);
+
+        if (monthlyChartInstance) {
+            monthlyChartInstance.destroy();
+        }
+
+        monthlyChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Monthly Spending',
+                    data: amounts,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 6,
+                    pointBackgroundColor: '#667eea',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '₹' + value.toFixed(0);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateCategoryTable(categorySpending) {
+        const totalAmount = Object.values(categorySpending).reduce((a, b) => a + b, 0);
+        
+        let html = '';
+        for (const [category, amount] of Object.entries(categorySpending).sort((a, b) => b[1] - a[1])) {
+            const percentage = totalAmount > 0 ? ((amount / totalAmount) * 100).toFixed(1) : 0;
+            html += `
+                <tr>
+                    <td>
+                        <span class="badge" style="background-color: #667eea;">${category}</span>
+                    </td>
+                    <td class="text-end fw-bold">₹${amount.toFixed(2)}</td>
+                    <td class="text-end">${percentage}%</td>
+                    <td class="text-end">-</td>
+                </tr>
+            `;
+        }
+
+        if (html === '') {
+            html = '<tr><td colspan="4" class="text-center text-muted py-3">No data available</td></tr>';
+        }
+
+        document.getElementById('categoryTableBody').innerHTML = html;
+    }
+
+    // Load analytics on page load
+    loadAnalytics();
+
+    // Refresh analytics every 30 seconds
+    setInterval(loadAnalytics, 30000);
+</script>
+{% endblock %}

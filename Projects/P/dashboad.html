@@ -1,0 +1,612 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - TraceLens Lite{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card-stat {
+        border-left: 4px solid #667eea;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .card-stat:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .stat-label {
+        color: #999;
+        font-size: 14px;
+    }
+
+    .upload-area {
+        border: 2px dashed #667eea;
+        border-radius: 10px;
+        padding: 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .upload-area:hover {
+        background-color: #f8f9ff;
+        border-color: #764ba2;
+    }
+
+    .upload-area.dragover {
+        background-color: #f8f9ff;
+        border-color: #764ba2;
+    }
+
+    .upload-icon {
+        font-size: 48px;
+        color: #667eea;
+        margin-bottom: 15px;
+    }
+
+    .expense-item {
+        border-left: 4px solid;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        transition: all 0.3s;
+    }
+
+    .expense-item:hover {
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .category-grocery { border-left-color: #ff6b6b; }
+    .category-restaurant { border-left-color: #ffd43b; }
+    .category-fuel { border-left-color: #51cf66; }
+    .category-medical { border-left-color: #a78bfa; }
+    .category-transport { border-left-color: #06b6d4; }
+    .category-entertainment { border-left-color: #ec4899; }
+    .category-other { border-left-color: #999; }
+
+    .category-badge {
+        border-radius: 20px;
+        padding: 5px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .amount-value {
+        font-size: 20px;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 20px;
+    }
+
+    .modal-lg {
+        max-width: 600px;
+    }
+
+    .search-box {
+        border-radius: 8px;
+        padding: 12px;
+        border: 1px solid #ddd;
+    }
+
+    .expense-detail-image {
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 8px;
+        margin-top: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="mb-2"><i class="fas fa-chart-line"></i> Expense Dashboard</h1>
+            <p class="text-muted">Welcome back, <strong>{{ session.username }}</strong>! Manage your expenses efficiently.</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                <i class="fas fa-camera"></i> Scan Receipt
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card card-stat">
+                <div class="card-body">
+                    <div class="stat-label">Total Expenses</div>
+                    <div class="stat-value">₹{{ "%.2f"|format(total_spent) }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card card-stat">
+                <div class="card-body">
+                    <div class="stat-label">This Month</div>
+                    <div class="stat-value">₹{{ "%.2f"|format(month_spent) }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card card-stat">
+                <div class="card-body">
+                    <div class="stat-label">Total Records</div>
+                    <div class="stat-value">{{ expense_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card card-stat">
+                <div class="card-body">
+                    <div class="stat-label">Average Expense</div>
+                    <div class="stat-value" id="avgExpense">₹0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-upload"></i> Upload Receipt</h5>
+        </div>
+        <div class="card-body">
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">
+                    <i class="fas fa-image"></i>
+                </div>
+                <h5>Drop your receipt image here</h5>
+                <p class="text-muted mb-0">or click to select from your device</p>
+                <small class="text-muted d-block mt-2">Supported formats: PNG, JPG, JPEG (Max 16MB)</small>
+            </div>
+            <input type="file" id="fileInput" style="display: none" accept="image/*">
+            <div class="loading-spinner" id="uploadSpinner">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Processing...</span>
+                </div>
+                <p class="text-muted mt-2">Processing your receipt...</p>
+            </div>
+            <div id="uploadError" class="alert alert-danger mt-3" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <input type="text" class="form-control search-box" id="searchBox" placeholder="🔍 Search by shop name or description...">
+                </div>
+                <div class="col-md-6">
+                    <select class="form-select search-box" id="categoryFilter">
+                        <option value="all">All Categories</option>
+                        <option value="Grocery">Grocery</option>
+                        <option value="Restaurant">Restaurant</option>
+                        <option value="Fuel">Fuel</option>
+                        <option value="Medical">Medical</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Shopping">Shopping</option>
+                        <option value="Utilities">Utilities</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expenses List -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-list"></i> Expense History</h5>
+        </div>
+        <div class="card-body p-0">
+            <div id="expensesList" class="p-3">
+                {% if expenses %}
+                    {% for expense in expenses %}
+                    <div class="expense-item category-{{ expense.category.lower() }}" onclick="viewExpense({{ expense.id }})">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h6 class="mb-1"><strong>{{ expense.shop_name }}</strong></h6>
+                                <small class="text-muted">{{ expense.date }} • <span class="category-badge">{{ expense.category }}</span></small>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <div class="amount-value text-success">₹{{ "%.2f"|format(expense.amount) }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox" style="font-size: 48px; color: #ddd;"></i>
+                    <p class="text-muted mt-3">No expenses yet. Upload a receipt to get started!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title"><i class="fas fa-camera"></i> Upload Receipt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="imagePreview" style="display: none; text-align: center; margin-bottom: 20px;">
+                    <img id="previewImage" src="" style="max-width: 100%; max-height: 300px; border-radius: 8px;">
+                </div>
+                <div class="upload-area-modal" id="modalUploadArea" onclick="document.getElementById('modalFileInput').click()">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <h6>Select your receipt image</h6>
+                    <small class="text-muted">PNG, JPG, JPEG (Max 16MB)</small>
+                </div>
+                <input type="file" id="modalFileInput" style="display: none" accept="image/*">
+                <div id="modalUploadError" class="alert alert-danger mt-3" style="display: none;"></div>
+                <div id="modalUploadSpinner" class="text-center mt-3" style="display: none;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2">Processing your receipt...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="uploadButton" onclick="uploadReceipt()" style="display: none;">
+                    <i class="fas fa-upload"></i> Upload & Process
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Expense Modal -->
+<div class="modal fade" id="viewExpenseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title"><i class="fas fa-receipt"></i> Expense Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="text-muted small">Shop Name</label>
+                        <h6 id="detailShop" class="fw-bold">-</h6>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small">Amount</label>
+                        <h6 id="detailAmount" class="fw-bold text-success">₹0</h6>
+                    </div>
+                </div>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="text-muted small">Date</label>
+                        <h6 id="detailDate" class="fw-bold">-</h6>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small">Category</label>
+                        <h6 id="detailCategory" class="fw-bold"><span class="category-badge">-</span></h6>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="text-muted small">Description</label>
+                    <textarea class="form-control" id="detailDescription" rows="3"></textarea>
+                </div>
+                <div id="detailImage" style="display: none;">
+                    <label class="text-muted small">Receipt Image</label>
+                    <img id="detailImageContent" src="" class="expense-detail-image">
+                </div>
+                <div id="detailOCRText" class="mt-3" style="display: none;">
+                    <label class="text-muted small">Extracted Text</label>
+                    <div class="p-3 bg-light rounded" style="max-height: 200px; overflow-y: auto;">
+                        <small id="ocrTextContent" class="text-monospace"></small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-warning" id="editButton" onclick="editExpense()">
+                    <i class="fas fa-edit"></i> Edit
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteButton" onclick="deleteExpense()">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedFile = null;
+    let currentExpenseId = null;
+
+    // Upload area drag and drop
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        handleFileSelect(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+            // Open modal
+            new bootstrap.Modal(document.getElementById('uploadModal')).show();
+        }
+    });
+
+    // Modal file input
+    document.getElementById('modalFileInput').addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleModalFileSelect(e.target.files[0]);
+        }
+    });
+
+    function handleFileSelect(file) {
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
+        }
+
+        if (file.size > 16 * 1024 * 1024) {
+            alert('File size exceeds 16MB limit');
+            return;
+        }
+
+        selectedFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('previewImage').src = e.target.result;
+            document.getElementById('imagePreview').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+
+        new bootstrap.Modal(document.getElementById('uploadModal')).show();
+    }
+
+    function handleModalFileSelect(file) {
+        if (!file.type.startsWith('image/')) {
+            document.getElementById('modalUploadError').textContent = 'Please select an image file';
+            document.getElementById('modalUploadError').style.display = 'block';
+            return;
+        }
+
+        if (file.size > 16 * 1024 * 1024) {
+            document.getElementById('modalUploadError').textContent = 'File size exceeds 16MB limit';
+            document.getElementById('modalUploadError').style.display = 'block';
+            return;
+        }
+
+        selectedFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('previewImage').src = e.target.result;
+            document.getElementById('imagePreview').style.display = 'block';
+            document.getElementById('uploadButton').style.display = 'inline-block';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function uploadReceipt() {
+        if (!selectedFile) {
+            alert('Please select a file');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        document.getElementById('modalUploadSpinner').style.display = 'block';
+        document.getElementById('modalUploadError').style.display = 'none';
+
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('modalUploadSpinner').style.display = 'none';
+            if (data.success) {
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+                // Reload expenses
+                loadExpenses();
+                // Reset form
+                selectedFile = null;
+                document.getElementById('previewImage').src = '';
+                document.getElementById('imagePreview').style.display = 'none';
+                document.getElementById('uploadButton').style.display = 'none';
+                document.getElementById('modalFileInput').value = '';
+            } else {
+                document.getElementById('modalUploadError').textContent = data.message || 'Upload failed';
+                document.getElementById('modalUploadError').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            document.getElementById('modalUploadSpinner').style.display = 'none';
+            document.getElementById('modalUploadError').textContent = 'Error: ' + error.message;
+            document.getElementById('modalUploadError').style.display = 'block';
+        });
+    }
+
+    function loadExpenses() {
+        const category = document.getElementById('categoryFilter').value;
+        const url = `/api/expenses?category=${category}`;
+
+        fetch(url)
+        .then(response => response.json())
+        .then(expenses => {
+            const expensesList = document.getElementById('expensesList');
+            if (expenses.length === 0) {
+                expensesList.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox" style="font-size: 48px; color: #ddd;"></i>
+                        <p class="text-muted mt-3">No expenses found</p>
+                    </div>
+                `;
+            } else {
+                expensesList.innerHTML = expenses.map(e => `
+                    <div class="expense-item category-${e.category.toLowerCase()}" onclick="viewExpense(${e.id})">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h6 class="mb-1"><strong>${e.shop_name}</strong></h6>
+                                <small class="text-muted">${e.date} • <span class="category-badge">${e.category}</span></small>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <div class="amount-value text-success">₹${e.amount.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        });
+    }
+
+    function viewExpense(id) {
+        currentExpenseId = id;
+        fetch(`/api/expense/${id}`)
+        .then(response => response.json())
+        .then(expense => {
+            document.getElementById('detailShop').textContent = expense.shop_name;
+            document.getElementById('detailAmount').textContent = `₹${expense.amount.toFixed(2)}`;
+            document.getElementById('detailDate').textContent = expense.date;
+            document.getElementById('detailCategory').innerHTML = `<span class="category-badge">${expense.category}</span>`;
+            document.getElementById('detailDescription').value = expense.description || '';
+            
+            if (expense.image_filename) {
+                document.getElementById('detailImage').style.display = 'block';
+                document.getElementById('detailImageContent').src = `/uploads/${expense.image_filename}`;
+            }
+
+            if (expense.raw_text) {
+                document.getElementById('detailOCRText').style.display = 'block';
+                document.getElementById('ocrTextContent').textContent = expense.raw_text;
+            }
+
+            new bootstrap.Modal(document.getElementById('viewExpenseModal')).show();
+        });
+    }
+
+    function editExpense() {
+        const description = document.getElementById('detailDescription').value;
+        
+        fetch(`/api/expense/${currentExpenseId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                description: description
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Expense updated successfully');
+                bootstrap.Modal.getInstance(document.getElementById('viewExpenseModal')).hide();
+                loadExpenses();
+            }
+        });
+    }
+
+    function deleteExpense() {
+        if (confirm('Are you sure you want to delete this expense?')) {
+            fetch(`/api/expense/${currentExpenseId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Expense deleted successfully');
+                    bootstrap.Modal.getInstance(document.getElementById('viewExpenseModal')).hide();
+                    loadExpenses();
+                }
+            });
+        }
+    }
+
+    // Search functionality
+    document.getElementById('searchBox').addEventListener('input', (e) => {
+        const query = e.target.value;
+        if (query.length > 0) {
+            fetch(`/api/search?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(expenses => {
+                const expensesList = document.getElementById('expensesList');
+                if (expenses.length === 0) {
+                    expensesList.innerHTML = `
+                        <div class="text-center py-5">
+                            <p class="text-muted">No expenses found matching "${query}"</p>
+                        </div>
+                    `;
+                } else {
+                    expensesList.innerHTML = expenses.map(e => `
+                        <div class="expense-item category-${e.category.toLowerCase()}" onclick="viewExpense(${e.id})">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <h6 class="mb-1"><strong>${e.shop_name}</strong></h6>
+                                    <small class="text-muted">${e.date} • <span class="category-badge">${e.category}</span></small>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <div class="amount-value text-success">₹${e.amount.toFixed(2)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            });
+        } else {
+            loadExpenses();
+        }
+    });
+
+    // Category filter
+    document.getElementById('categoryFilter').addEventListener('change', () => {
+        loadExpenses();
+    });
+
+    // Calculate average expense
+    function calculateAverage() {
+        const totalSpent = parseFloat('{{ total_spent }}');
+        const count = {{ expense_count }};
+        const average = count > 0 ? totalSpent / count : 0;
+        document.getElementById('avgExpense').textContent = `₹${average.toFixed(2)}`;
+    }
+
+    // Initial load
+    calculateAverage();
+</script>
+{% endblock %}

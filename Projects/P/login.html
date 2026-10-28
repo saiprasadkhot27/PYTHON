@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Login - TraceLens Lite{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="container d-flex align-items-center justify-content-center min-vh-100">
+        <div class="login-card">
+            <div class="text-center mb-4">
+                <i class="fas fa-receipt login-icon"></i>
+                <h1 class="mt-3">TraceLens Lite</h1>
+                <p class="text-muted">AI-Powered Receipt Scanner & Expense Tracker</p>
+            </div>
+
+            <div id="loginForm" class="auth-form">
+                <h3 class="mb-4 text-center">Login to Your Account</h3>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" placeholder="Enter your username" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" placeholder="Enter your password" required>
+                </div>
+                <button type="button" class="btn btn-primary w-100" onclick="handleLogin()">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+                <div id="loginError" class="alert alert-danger mt-3" style="display: none;"></div>
+            </div>
+
+            <div class="text-center mt-4">
+                <p class="mb-0">Don't have an account? 
+                    <a href="{{ url_for('register') }}" class="text-primary fw-bold">Create one now</a>
+                </p>
+            </div>
+
+            <div class="demo-info mt-4 p-3 bg-light rounded">
+                <small class="text-muted">
+                    <strong>Demo Credentials:</strong><br>
+                    Username: demo<br>
+                    Password: demo123
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.login-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+.login-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    padding: 40px;
+    max-width: 400px;
+    width: 100%;
+}
+
+.login-icon {
+    font-size: 60px;
+    color: #667eea;
+}
+
+.auth-form input {
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.auth-form button {
+    border-radius: 8px;
+    padding: 12px;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.auth-form button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+}
+
+.demo-info {
+    border-left: 4px solid #667eea;
+}
+
+@media (max-width: 576px) {
+    .login-card {
+        padding: 30px 20px;
+    }
+}
+</style>
+
+<script>
+function handleLogin() {
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('loginError');
+
+    if (!username || !password) {
+        errorDiv.textContent = 'Please fill in all fields';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    fetch('/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            username: username,
+            password: password
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '{{ url_for("dashboard") }}';
+        } else {
+            errorDiv.textContent = data.message || 'Login failed';
+            errorDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        errorDiv.textContent = 'An error occurred. Please try again.';
+        errorDiv.style.display = 'block';
+    });
+}
+
+// Enter key to login
+document.getElementById('password').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        handleLogin();
+    }
+});
+</script>
+{% endblock %}
